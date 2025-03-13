@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
+import { rules } from "./smartcheck-rules";
 
-interface SmartCheckResult {
+export interface SmartCheckResult {
   severity: "high" | "medium" | "low" | "info" | "error";
   message: string;
   line: number;
@@ -132,6 +133,16 @@ function analyzeContractSimple(code: string): SmartCheckResult[] {
     analyzeFunction(currentFunction, functionStartLine, results);
   }
 
+  // Apply SmartCheck rules
+  lines.forEach((line, index) => {
+    rules.forEach((rule) => {
+      const result = rule.check(line, index + 1);
+      if (result) {
+        results.push(result);
+      }
+    });
+  });
+
   return results;
 }
 
@@ -140,21 +151,6 @@ function analyzeFunction(
   startLine: number,
   results: SmartCheckResult[]
 ) {
-  // Check reentrancy
-  if (func.hasExternalCall && func.hasStateChange) {
-    results.push({
-      severity: "high",
-      message: "Potential reentrancy vulnerability detected",
-      line: startLine + 1,
-      column: 1,
-      rule: "reentrancy",
-      description:
-        "The contract may be vulnerable to reentrancy attacks. State changes are made after external calls.",
-      recommendation:
-        "Consider using the Checks-Effects-Interactions pattern or a reentrancy guard.",
-    });
-  }
-
   // Check visibility
   if (
     func.visibility === "public" &&
@@ -175,17 +171,27 @@ function analyzeFunction(
   }
 
   // Check payable functions
-  if (func.isPayable && !func.code.includes("require(msg.value")) {
-    results.push({
-      severity: "medium",
-      message: "Payable function without value validation",
-      line: startLine + 1,
-      column: 1,
-      rule: "payable-validation",
-      description: "Payable functions should validate the received value.",
-      recommendation:
-        "Add require(msg.value > 0) or similar validation at the start of the function.",
-    });
+  if (func.isPayable) {
+    const hasValueValidation = func.code
+      .split("\n")
+      .some(
+        (line) =>
+          line.trim().startsWith("require(msg.value") ||
+          line.trim().startsWith("if (msg.value")
+      );
+
+    if (!hasValueValidation) {
+      results.push({
+        severity: "medium",
+        message: "Payable function without value validation",
+        line: startLine + 1,
+        column: 1,
+        rule: "payable-validation",
+        description: "Payable functions should validate the received value.",
+        recommendation:
+          "Add require(msg.value > 0) or similar validation at the start of the function.",
+      });
+    }
   }
 }
 
@@ -210,7 +216,8 @@ export async function analyzeContract(
     const processedCode = preprocessSolidityCode(sourceCode);
     let results = analyzeContractSimple(processedCode);
 
-    if (results.length === 0) {
+    // Only add "No issues found" if there are no actual issues
+    if (results.length === 0 || results.every((r) => r.severity === "info")) {
       results = [
         {
           severity: "info",
@@ -248,9 +255,9 @@ export async function analyzeContract(
         line: 1,
         column: 1,
         rule: "internal-error",
-        description: "An internal error occurred while analyzing the contract.",
+        description: "An error occurred while analyzing the contract.",
         recommendation:
-          "Please try again with valid Solidity code. If the error persists, check the contract syntax.",
+          "Please try again or contact support if the issue persists.",
       },
     ];
   }
