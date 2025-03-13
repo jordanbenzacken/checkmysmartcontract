@@ -14,8 +14,8 @@ const port = process.env.PORT || 3000;
 const allowedOrigins = [
   'http://localhost:5173',  // Local development
   'http://localhost:3000',  // Local production build
-  'https://smartcheck-web.netlify.app', // Your Netlify domain
-  'https://smartcheck-web.up.railway.app' // Railway domain (update this with your actual domain)
+  'https://checkmysmartcontract.net', // Custom domain
+  'https://www.checkmysmartcontract.net' // www subdomain
 ];
 
 app.use(cors({
