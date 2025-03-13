@@ -7,6 +7,11 @@ function App() {
   return (
     <>
       <Helmet>
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6756564816358571"
+          crossorigin="anonymous"
+        ></script>
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
@@ -47,11 +52,6 @@ function App() {
         </nav>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Ad Space */}
-          <div className="bg-gray-200 p-4 mb-8 rounded-lg text-center">
-            <p className="text-gray-600">Advertisement Space</p>
-          </div>
-
           <div className="bg-white rounded-lg shadow-md p-6">
             <div className="mb-6">
               <h1 className="text-2xl font-bold">Solidity Security Analysis</h1>
@@ -62,11 +62,6 @@ function App() {
             </div>
 
             <CodeAnalyzer />
-          </div>
-
-          {/* Bottom Ad Space */}
-          <div className="bg-gray-200 p-4 mt-8 rounded-lg text-center">
-            <p className="text-gray-600">Advertisement Space</p>
           </div>
         </main>
 
