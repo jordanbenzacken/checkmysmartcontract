@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { AlertCircle, Code2, FileWarning } from 'lucide-react';
+import { useState } from "react";
+import { AlertCircle, Code2, FileWarning } from "lucide-react";
 import Editor from "@monaco-editor/react";
-import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { githubGist } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import { analyzeContract, SmartCheckResult } from '../services/smartcheck-service';
+import {
+  analyzeContract,
+  SmartCheckResult,
+} from "../services/smartcheck-service";
 
 const SAMPLE_CONTRACT = `pragma solidity ^0.8.0;
 
@@ -26,20 +27,26 @@ export function CodeAnalyzer() {
   const [code, setCode] = useState(SAMPLE_CONTRACT);
   const [analyzing, setAnalyzing] = useState(false);
   const [results, setResults] = useState<SmartCheckResult[]>([]);
-  const [error, setError] = useState<string>('');
-  const [selectedResult, setSelectedResult] = useState<SmartCheckResult | null>(null);
+  const [error, setError] = useState<string>("");
+  const [selectedResult, setSelectedResult] = useState<SmartCheckResult | null>(
+    null
+  );
 
   const analyzeCode = async () => {
     setAnalyzing(true);
-    setError('');
+    setError("");
     setResults([]);
     setSelectedResult(null);
-    
+
     try {
       const analysisResults = await analyzeContract(code);
       setResults(analysisResults);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to analyze code. Please try again.');
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to analyze code. Please try again."
+      );
     } finally {
       setAnalyzing(false);
     }
@@ -47,10 +54,14 @@ export function CodeAnalyzer() {
 
   const getSeverityColor = (severity: string) => {
     switch (severity) {
-      case 'high': return 'text-red-600 bg-red-50';
-      case 'medium': return 'text-orange-600 bg-orange-50';
-      case 'low': return 'text-yellow-600 bg-yellow-50';
-      default: return 'text-blue-600 bg-blue-50';
+      case "high":
+        return "text-red-600 bg-red-50";
+      case "medium":
+        return "text-orange-600 bg-orange-50";
+      case "low":
+        return "text-yellow-600 bg-yellow-50";
+      default:
+        return "text-blue-600 bg-blue-50";
     }
   };
 
@@ -67,19 +78,19 @@ export function CodeAnalyzer() {
             disabled={analyzing}
             className="px-4 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            {analyzing ? 'Analyzing...' : 'Analyze Code'}
+            {analyzing ? "Analyzing..." : "Analyze Code"}
           </button>
         </div>
         <Editor
           height="400px"
           defaultLanguage="sol"
           value={code}
-          onChange={(value) => setCode(value || '')}
+          onChange={(value) => setCode(value || "")}
           theme="vs-dark"
           options={{
             minimap: { enabled: false },
             fontSize: 14,
-            lineNumbers: 'on',
+            lineNumbers: "on",
             readOnly: analyzing,
           }}
         />
@@ -98,14 +109,16 @@ export function CodeAnalyzer() {
             <FileWarning className="h-6 w-6" />
             Analysis Results
           </h2>
-          
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-3">
               {results.map((result, index) => (
                 <button
                   key={index}
                   onClick={() => setSelectedResult(result)}
-                  className={`w-full p-4 rounded-lg ${getSeverityColor(result.severity)} text-left transition-colors hover:opacity-90`}
+                  className={`w-full p-4 rounded-lg ${getSeverityColor(
+                    result.severity
+                  )} text-left transition-colors hover:opacity-90`}
                 >
                   <div className="flex items-start justify-between">
                     <div>
@@ -122,16 +135,24 @@ export function CodeAnalyzer() {
 
             {selectedResult && (
               <div className="bg-gray-50 p-6 rounded-lg">
-                <h3 className="text-lg font-semibold mb-4">{selectedResult.rule}</h3>
+                <h3 className="text-lg font-semibold mb-4">
+                  {selectedResult.rule}
+                </h3>
                 <div className="space-y-4">
                   <div>
                     <h4 className="font-medium text-gray-700">Description</h4>
-                    <p className="mt-1 text-gray-600">{selectedResult.description}</p>
+                    <p className="mt-1 text-gray-600">
+                      {selectedResult.description}
+                    </p>
                   </div>
                   {selectedResult.recommendation && (
                     <div>
-                      <h4 className="font-medium text-gray-700">Recommendation</h4>
-                      <p className="mt-1 text-gray-600">{selectedResult.recommendation}</p>
+                      <h4 className="font-medium text-gray-700">
+                        Recommendation
+                      </h4>
+                      <p className="mt-1 text-gray-600">
+                        {selectedResult.recommendation}
+                      </p>
                     </div>
                   )}
                   <div>
