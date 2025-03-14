@@ -1,4 +1,3 @@
-import React from "react";
 import { Shield } from "lucide-react";
 import { CodeAnalyzer } from "./components/CodeAnalyzer";
 import { Helmet } from "react-helmet-async";
