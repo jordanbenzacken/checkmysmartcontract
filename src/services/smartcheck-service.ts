@@ -11,14 +11,6 @@ export interface SmartCheckResult {
   recommendation: string;
 }
 
-interface FunctionAnalysis {
-  code: string;
-  hasExternalCall: boolean;
-  hasStateChange: boolean;
-  isPayable: boolean;
-  visibility: "public" | "private" | "internal" | "external" | undefined;
-}
-
 function preprocessSolidityCode(code: string): string {
   return code
     .replace(/\r\n/g, "\n")
@@ -75,10 +67,20 @@ function analyzeContractSimple(code: string): SmartCheckResult[] {
     }
   });
 
-  // Find and analyze functions
-  let currentFunction: FunctionAnalysis | null = null;
+  // Track function state
+  let currentFunction: {
+    code: string;
+    hasExternalCall: boolean;
+    hasStateChange: boolean;
+    isPayable: boolean;
+    visibility: "public" | "private" | "internal" | "external" | undefined;
+    hasModifier: boolean;
+    modifiers: string[];
+  } | null = null;
+
   let functionStartLine = 0;
 
+  // Second pass: Analyze functions and vulnerabilities
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
@@ -97,32 +99,31 @@ function analyzeContractSimple(code: string): SmartCheckResult[] {
         ? ("external" as const)
         : undefined;
 
+      const modifiers =
+        line
+          .match(/modifier\s+(\w+)/g)
+          ?.map((m) => m.replace("modifier ", "")) || [];
+
       currentFunction = {
         code: line,
         hasExternalCall: false,
         hasStateChange: false,
         isPayable: line.includes("payable"),
         visibility,
+        hasModifier: modifiers.length > 0,
+        modifiers,
       };
       functionStartLine = i;
     } else if (currentFunction) {
       currentFunction.code += "\n" + line;
 
-      // Check for external calls
-      if (
-        line.includes(".call{") ||
-        line.includes(".send(") ||
-        line.includes(".transfer(")
-      ) {
+      // Check for external calls with proper pattern matching
+      if (line.match(/\.(call|send|transfer)\s*[({]/)) {
         currentFunction.hasExternalCall = true;
       }
 
-      // Check for state changes
-      if (
-        line.includes("balances[") ||
-        line.includes("+=") ||
-        line.includes("-=")
-      ) {
+      // Check for state changes with proper pattern matching
+      if (line.match(/([+=]|[-=]|= [^=])/)) {
         currentFunction.hasStateChange = true;
       }
     }
@@ -133,12 +134,19 @@ function analyzeContractSimple(code: string): SmartCheckResult[] {
     analyzeFunction(currentFunction, functionStartLine, results);
   }
 
-  // Apply SmartCheck rules
+  // Apply SmartCheck rules with improved pattern matching
   lines.forEach((line, index) => {
     rules.forEach((rule) => {
       const result = rule.check(line, index + 1);
       if (result) {
-        results.push(result);
+        // Only add if we don't already have a similar result
+        if (
+          !results.some(
+            (r) => r.rule === result.rule && Math.abs(r.line - result.line) <= 2
+          )
+        ) {
+          results.push(result);
+        }
       }
     });
   });
@@ -147,10 +155,21 @@ function analyzeContractSimple(code: string): SmartCheckResult[] {
 }
 
 function analyzeFunction(
-  func: FunctionAnalysis,
+  func: {
+    code: string;
+    hasExternalCall: boolean;
+    hasStateChange: boolean;
+    isPayable: boolean;
+    visibility: "public" | "private" | "internal" | "external" | undefined;
+    hasModifier: boolean;
+    modifiers: string[];
+  },
   startLine: number,
   results: SmartCheckResult[]
 ) {
+  const lines = func.code.split("\n");
+  const functionName = func.code.match(/function\s+(\w+)/)?.[1] || "";
+
   // Check visibility
   if (
     func.visibility === "public" &&
@@ -172,13 +191,11 @@ function analyzeFunction(
 
   // Check payable functions
   if (func.isPayable) {
-    const hasValueValidation = func.code
-      .split("\n")
-      .some(
-        (line) =>
-          line.trim().startsWith("require(msg.value") ||
-          line.trim().startsWith("if (msg.value")
-      );
+    const hasValueValidation = lines.some(
+      (line) =>
+        line.trim().startsWith("require(msg.value") ||
+        line.trim().startsWith("if (msg.value")
+    );
 
     if (!hasValueValidation) {
       results.push({
@@ -190,6 +207,91 @@ function analyzeFunction(
         description: "Payable functions should validate the received value.",
         recommendation:
           "Add require(msg.value > 0) or similar validation at the start of the function.",
+      });
+    }
+  }
+
+  // Check for reentrancy
+  if (func.hasExternalCall && func.hasStateChange) {
+    const stateChangeIndex = lines.findIndex((line) =>
+      line.match(/([+=]|[-=]|= [^=])/)
+    );
+    const externalCallIndex = lines.findIndex((line) =>
+      line.match(/\.(call|send|transfer)\s*[({]/)
+    );
+
+    if (stateChangeIndex > externalCallIndex) {
+      results.push({
+        severity: "high",
+        message: "Potential reentrancy vulnerability detected",
+        line: startLine + 1,
+        column: 1,
+        rule: "reentrancy",
+        description:
+          "State changes are made after external calls, which could lead to reentrancy attacks.",
+        recommendation:
+          "Use the Checks-Effects-Interactions pattern or a reentrancy guard.",
+      });
+    }
+  }
+
+  // Check for unprotected functions
+  const isProtected = func.hasModifier && func.modifiers.includes("onlyOwner");
+
+  if (!isProtected) {
+    // Check for initialize function
+    if (functionName === "initialize") {
+      results.push({
+        severity: "high",
+        message: "Unprotected initialization function",
+        line: startLine + 1,
+        column: 1,
+        rule: "unprotected-init",
+        description:
+          "Initialization function should be protected from multiple calls.",
+        recommendation: "Add an initialization guard using a boolean flag.",
+      });
+    }
+
+    // Check for upgrade function
+    if (functionName === "upgrade") {
+      results.push({
+        severity: "high",
+        message: "Unprotected upgrade function",
+        line: startLine + 1,
+        column: 1,
+        rule: "unprotected-upgrade",
+        description:
+          "Upgrade functions should be protected with access control.",
+        recommendation: "Add onlyOwner modifier or similar access control.",
+      });
+    }
+
+    // Check for withdraw function
+    if (functionName === "withdraw") {
+      results.push({
+        severity: "high",
+        message: "Unprotected withdraw function",
+        line: startLine + 1,
+        column: 1,
+        rule: "unprotected-withdraw",
+        description:
+          "Withdraw functions should be protected with access control.",
+        recommendation: "Add onlyOwner modifier or similar access control.",
+      });
+    }
+
+    // Check for selfdestruct function
+    if (lines.some((line) => line.includes("selfdestruct"))) {
+      results.push({
+        severity: "high",
+        message: "Unprotected selfdestruct function",
+        line: startLine + 1,
+        column: 1,
+        rule: "unprotected-selfdestruct",
+        description:
+          "Selfdestruct functions should be protected with access control.",
+        recommendation: "Add onlyOwner modifier or similar access control.",
       });
     }
   }
