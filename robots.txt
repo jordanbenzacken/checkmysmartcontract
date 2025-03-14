@@ -1,4 +1,13 @@
+# www.robotstxt.org/
+# Allow crawling of all content
 User-agent: *
 Allow: /
+Disallow: /api/
+Disallow: /*.json$
+Disallow: /*?*
 
-Sitemap: https://checkmysmartcontract.net/sitemap.xml
+# Sitemap
+Sitemap: https://www.checkmysmartcontract.net/sitemap.xml
+
+# Crawl-delay
+Crawl-delay: 10
