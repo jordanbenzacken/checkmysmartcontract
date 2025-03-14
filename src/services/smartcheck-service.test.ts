@@ -1,4 +1,20 @@
 import { analyzeContract } from "./smartcheck-service";
+import { vi } from "vitest";
+
+// Mock Supabase
+vi.mock("../lib/supabase", () => ({
+  supabase: {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
+    },
+    from: vi.fn().mockReturnValue({
+      insert: vi.fn().mockResolvedValue({ data: null, error: null }),
+      select: vi.fn().mockReturnValue({
+        order: vi.fn().mockResolvedValue({ data: [], error: null }),
+      }),
+    }),
+  },
+}));
 
 describe("SmartCheck Service", () => {
   describe("analyzeContract", () => {
